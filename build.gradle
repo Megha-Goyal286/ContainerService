@@ -1,0 +1,97 @@
+plugins {
+    id 'org.springframework.boot' version '2.4.2'
+    id 'io.spring.dependency-management' version '1.0.11.RELEASE'
+    id 'com.github.sherter.google-java-format' version '0.8'
+    id 'java'
+    id 'org.openapi.generator'
+    id 'jacoco'
+}
+
+group = 'Core.container-service.Container'
+version = '1.0.0'
+
+apply plugin: 'jacoco'
+gradleLint.rules = ['all-dependency']
+sourceCompatibility = '14'
+
+
+compileJava {
+    dependsOn 'copyDir'
+//    dependsOn tasks.named("googleJavaFormat")
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name 'FoxtrotPlatformShared'
+        url 'https://maven.pkg.github.com/FoxtrotPlatform/Shared'
+        credentials {
+            username System.getenv('F_GITHUB_ACTOR')
+            password System.getenv('F_GITHUB_TOKEN')
+        }
+    }
+}
+
+dependencies {
+
+    implementation('org.springframework.boot:spring-boot-starter-web') {
+        exclude group: 'org.springframework', module: 'spring-core'
+    }
+    compileOnly 'org.projectlombok:lombok'
+    testCompile "org.mockito:mockito-inline:2.7.21"
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    annotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    implementation group: 'foxtrot.shared', name: 'exceptions', version: '0.0.7-SNAPSHOT'
+    implementation 'org.springframework.boot:spring-boot-starter-data-cassandra'
+    implementation 'org.springframework.boot:spring-boot-starter-validation'
+    implementation group: 'com.auth0', name: 'java-jwt', version: '3.18.1'
+    implementation group: 'io.swagger', name: 'swagger-annotations', version: '1.5.0'
+    implementation group: 'org.modelmapper', name: 'modelmapper', version: '0.7.5'
+    implementation 'org.springframework.boot:spring-boot-starter-data-elasticsearch'
+    implementation group: 'org.slf4j', name: 'slf4j-api', version: '1.7.30'
+    implementation group: 'org.springframework.kafka', name: 'spring-kafka', version: '2.6.4'
+    implementation group: 'com.amazonaws', name: 'aws-java-sdk-elasticsearch', version: '1.11.952'
+    implementation group: 'redis.clients', name: 'jedis', version: '3.5.1'
+    implementation group: 'org.openapitools', name: 'jackson-databind-nullable', version: '0.2.1'
+    implementation group: 'foxtrot.statemachine', name: 'state-machine', version: '1.0.0.050'
+    implementation group: 'org.springframework.boot', name: 'spring-boot-starter-actuator', version: '2.4.5'
+
+}
+jacocoTestReport {
+    reports {
+        html {
+            enabled true
+        }
+    }
+    afterEvaluate {
+        getClassDirectories().setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, exclude: ["foxtrot/containers/config/**", "foxtrot/containers/model/**","foxtrot/containers/component/**"])
+        }))
+    }
+}
+
+test.finalizedBy(project.tasks.jacocoTestReport)
+
+test {
+    useJUnitPlatform()
+       jacoco {}
+}
+
+openApiGenerate{
+    generatorName = "spring"
+    inputSpec = "$rootDir/container-service/src/main/java/foxtrot/containers/ContainerService.yaml"
+    outputDir = "$buildDir/generated/openapi".toString()
+    modelPackage = "foxtrot.containers.model"
+}
+
+task copyDir {
+    dependsOn 'openApiGenerate'
+    doLast {
+        def srcPath = 'src/main/java/foxtrot/containers/model/'.toString()
+        copy {
+            from "$buildDir/generated/openapi/$srcPath".toString()
+            into "$projectDir/$srcPath".toString()
+        }
+    }
+}
